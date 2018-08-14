@@ -25,7 +25,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-from models.BasicLSTM import inputs as input_ops
+from models.BasicLSTM.utils import inputs as input_ops
 
 
 class AutoEncoder(object):
@@ -48,6 +48,9 @@ class AutoEncoder(object):
             minval=-self.config.initializer_scale,
             maxval=self.config.initializer_scale)
 
+        #complete sentences
+        self.complete_sentences = None
+
         # An int32 Tensor with shape [batch_size, padded_length].
         self.input_seqs = None
 
@@ -59,6 +62,7 @@ class AutoEncoder(object):
 
         # A float32 Tensor with shape [batch_size, padded_length, embedding_size].
         self.seq_embeddings = None
+        self.complete_seq_embeddings = None
 
         # A float32 scalar Tensor; the total loss for the trainer to optimize.
         self.total_loss = None
@@ -90,10 +94,18 @@ class AutoEncoder(object):
           self.input_mask (training and eval only)
         """
         if self.mode == "inference":
-            # In inference mode, inputs are fed via placeholders.
-            input_feed = tf.placeholder(dtype=tf.int64,
-                                        shape=[None],  # batch_size
-                                        name="input_feed")
+            complete_sentences = tf.placeholder(
+                dtype=tf.int64,
+                shape=[None],  # batch_size
+                name="sentence_feed"
+            )
+
+        # In inference mode, inputs are fed via placeholders.
+            input_feed = tf.placeholder(
+                dtype=tf.int64,
+                shape=[None],  # batch_size
+                name="input_feed"
+            )
 
             input_seqs = tf.expand_dims(input_feed, 1)
 
@@ -101,11 +113,12 @@ class AutoEncoder(object):
             target_seqs = None
             input_mask = None
         else:
-            input_seqs, target_seqs, input_mask = input_ops.batch_input_data(
+            complete_sentences, input_seqs, target_seqs, input_mask = input_ops.batch_input_data(
                 file_name_pattern=self.config.input_file_pattern,
                 config=self.config
             )
 
+        self.complete_sentences = complete_sentences
         self.input_seqs = input_seqs
         self.target_seqs = target_seqs
         self.input_mask = input_mask
@@ -126,9 +139,12 @@ class AutoEncoder(object):
                 name="map",
                 shape=[self.config.vocab_size, self.config.embedding_size],
                 initializer=self.initializer)
+
             seq_embeddings = tf.nn.embedding_lookup(embedding_map, self.input_seqs)
+            complete_seq_embeddings = tf.nn.embedding_lookup(embedding_map, self.complete_sentences)
 
         self.seq_embeddings = seq_embeddings
+        self.complete_seq_embeddings = complete_seq_embeddings
 
     def build_model(self):
         """Builds the model.
@@ -169,7 +185,7 @@ class AutoEncoder(object):
 
             # sequence_length is for correctness
             _, enc_final_state = tf.nn.dynamic_rnn(cell=lstm_cell_enc,
-                                                   inputs=self.seq_embeddings,
+                                                   inputs=self.complete_seq_embeddings,
                                                    sequence_length=None,
                                                    initial_state=zero_state_enc,
                                                    dtype=tf.float32,
@@ -179,6 +195,8 @@ class AutoEncoder(object):
             # and h is the final representation of the sentence,
             # which would be fed as multi-modal input.
             static_feature = enc_final_state.h
+            print("-----------static feature---------")
+            print(static_feature)
 
             # use zero state is the initial state while the intermediate representation serves as multi-modal input.
             initial_state_dec = lstm_cell_dec.zero_state(
