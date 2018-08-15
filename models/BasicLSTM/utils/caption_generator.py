@@ -137,7 +137,7 @@ class CaptionGenerator(object):
         self.max_caption_length = max_caption_length
         self.length_normalization_factor = length_normalization_factor
 
-    def beam_search(self, sess, encoded_image_stream, k=None):
+    def beam_search(self, sess, sentence, k=None):
         """Runs beam search caption generation on a single image.
         Args:
           sess: TensorFlow Session object.
@@ -146,7 +146,7 @@ class CaptionGenerator(object):
           A list of Caption sorted by descending score.
         """
         # Feed in the image to get the initial state.
-        initial_state, static_feature = self.model.feed_image(sess, encoded_image_stream)
+        initial_state, static_feature = self.model.feed_sentence(sess, sentence)
 
         initial_beam = Caption(
             sentence=[self.vocab.start_id],

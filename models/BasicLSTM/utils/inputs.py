@@ -5,9 +5,6 @@ from __future__ import print_function
 import os.path
 import tensorflow as tf
 
-from models.BasicLSTM.model import AutoEncoder
-
-
 def _parse_sequence_example(example):
     """
     :param example:
@@ -30,7 +27,7 @@ def batch_input_data(file_name_pattern, config, mode='train'):
     :param mode: mode of current session
     :return: batched images: left & right,
     """
-    assert mode in ['train', 'test', 'val']
+    assert mode in ['train', 'test', 'eval']
 
     files = tf.gfile.Glob(file_name_pattern)
     if not files:

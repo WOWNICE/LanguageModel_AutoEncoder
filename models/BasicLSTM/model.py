@@ -108,6 +108,7 @@ class AutoEncoder(object):
             )
 
             input_seqs = tf.expand_dims(input_feed, 1)
+            complete_sentences = tf.expand_dims(complete_sentences, 0)
 
             # No target sequences or input mask in inference mode.
             target_seqs = None
@@ -179,9 +180,10 @@ class AutoEncoder(object):
                     input_keep_prob=self.config.lstm_dropout_keep_prob,
                     output_keep_prob=self.config.lstm_dropout_keep_prob)
 
+            print(self.complete_sentences)
             # Feed the image embeddings to set the initial LSTM state.
             zero_state_enc = lstm_cell_enc.zero_state(
-                batch_size=self.input_seqs.get_shape()[0], dtype=tf.float32)
+                batch_size=self.complete_sentences.get_shape()[0], dtype=tf.float32)
 
             # sequence_length is for correctness
             _, enc_final_state = tf.nn.dynamic_rnn(cell=lstm_cell_enc,
@@ -200,14 +202,18 @@ class AutoEncoder(object):
 
             # use zero state is the initial state while the intermediate representation serves as multi-modal input.
             initial_state_dec = lstm_cell_dec.zero_state(
-                batch_size=self.input_seqs.get_shape()[0], dtype=tf.float32)
+                batch_size=self.complete_sentences.get_shape()[0], dtype=tf.float32)
 
-            # Allow the LSTM variables to be reused.
-            lstm_scope.reuse_variables()
 
             if self.mode == "inference":
-                # In inference mode, use concatenated states for convenient feeding and fetching.
+                # In inference mode, use concatenated states for convenient feeding and
+                # fetching.
                 tf.concat(axis=1, values=initial_state_dec, name="initial_state")
+
+                # Placeholder for static_feature
+                static_feature_feed = tf.placeholder(dtype=tf.float32,
+                                                     shape=[None, self.config.num_lstm_units],
+                                                     name="static_feature_feed")
 
                 # Placeholder for feeding a batch of concatenated states.
                 state_feed = tf.placeholder(dtype=tf.float32,
@@ -215,13 +221,16 @@ class AutoEncoder(object):
                                             name="state_feed")
                 state_tuple = tf.split(value=state_feed, num_or_size_splits=2, axis=1)
 
+                combined_inputs = tf.concat([static_feature_feed, tf.squeeze(self.seq_embeddings, axis=1)], axis=1)
+
                 # Run a single LSTM step.
                 lstm_outputs, state_tuple = lstm_cell_dec(
-                    inputs=tf.squeeze(self.seq_embeddings, axis=[1]),
+                    inputs=combined_inputs,
                     state=state_tuple)
 
                 # Concatentate the resulting state.
                 tf.squeeze(tf.concat(axis=1, values=state_tuple), name="state")
+
             else:
                 # Run the batch of sequence embeddings through the LSTM.
                 # first construct the multi-modal input.
@@ -236,6 +245,8 @@ class AutoEncoder(object):
                                                     initial_state=initial_state_dec,
                                                     dtype=tf.float32,
                                                     scope=lstm_scope)
+            # Allow the LSTM variables to be reused.
+            lstm_scope.reuse_variables()
 
         # Stack batches vertically.
         lstm_outputs = tf.reshape(lstm_outputs, [-1, lstm_cell_dec.output_size])

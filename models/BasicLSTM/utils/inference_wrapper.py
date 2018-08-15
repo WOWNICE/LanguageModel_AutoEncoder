@@ -56,7 +56,7 @@ class InferenceWrapperBase(object):
     def feed_sentence(self, sess, sentence):
         tf.logging.fatal("Please implement feed_image in subclass")
 
-    def inference_step(self, sess, input_feed, state_feed):
+    def inference_step(self, sess, input_feed, state_feed, static_feature_feed):
         tf.logging.fatal("Please implement inference_step in subclass")
 
 
@@ -72,14 +72,15 @@ class InferenceWrapper(InferenceWrapperBase):
         return model
 
     def feed_sentence(self, sess, encoded_image_stream):
-        initial_state, static_feature = sess.run(fetches=["lstm/initial_state:0", "lstm/static_feature:0"],
+        initial_state, static_feature = sess.run(fetches=["lstm/initial_state:0", "lstm/lstm/while/Exit_4:0"],
                                  feed_dict={"sentence_feed:0": encoded_image_stream})
         return initial_state, static_feature
 
-    def inference_step(self, sess, input_feed, state_feed):
+    def inference_step(self, sess, input_feed, state_feed, static_feature_feed):
         softmax_output, state_output = sess.run(
             fetches=["softmax:0", "lstm/state:0"],
             feed_dict={
+                "lstm/static_feature_feed:0": static_feature_feed,
                 "input_feed:0": input_feed,
                 "lstm/state_feed:0": state_feed,
             })

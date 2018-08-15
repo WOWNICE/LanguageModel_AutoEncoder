@@ -26,11 +26,11 @@ from tensorflow.python import debug as tf_debug
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.flags.DEFINE_string("input_file_pattern", "data/tfrecord/train-?????-of-00256",
+tf.flags.DEFINE_string("input_file_pattern", "data/tfrecord/train-tfrecord-?????-of-00256",
                        "File pattern of sharded TFRecord input files.")
 tf.flags.DEFINE_string("train_model_dir", "models/BasicLSTM/train_log",
                        "Directory for saving and loading model checkpoints.")
-tf.flags.DEFINE_integer("number_of_steps", 500000, "Number of training steps.")
+tf.flags.DEFINE_integer("number_of_steps", 60000, "Number of training steps.")
 tf.flags.DEFINE_integer("log_every_n_steps", 100,
                         "Frequency at which loss and global step are logged.")
 
@@ -60,25 +60,22 @@ def main(unused_argv):
 
         # learning rate setting.
         learning_rate_decay_fn = None
-        if FLAGS.train_inception:
-            learning_rate = tf.constant(training_config.train_inception_learning_rate)
-        else:
-            learning_rate = tf.constant(training_config.initial_learning_rate)
-            if training_config.learning_rate_decay_factor > 0:
-                num_batches_per_epoch = (training_config.num_examples_per_epoch /
-                                         model_config.batch_size)
-                decay_steps = int(num_batches_per_epoch *
-                                  training_config.num_epochs_per_decay)
+        learning_rate = tf.constant(training_config.initial_learning_rate)
+        if training_config.learning_rate_decay_factor > 0:
+            num_batches_per_epoch = (training_config.num_examples_per_epoch /
+                                     model_config.batch_size)
+            decay_steps = int(num_batches_per_epoch *
+                              training_config.num_epochs_per_decay)
 
-                def _learning_rate_decay_fn(learning_rate, global_step):
-                    return tf.train.exponential_decay(
-                        learning_rate,
-                        global_step,
-                        decay_steps=decay_steps,
-                        decay_rate=training_config.learning_rate_decay_factor,
-                        staircase=True)
+            def _learning_rate_decay_fn(learning_rate, global_step):
+                return tf.train.exponential_decay(
+                    learning_rate,
+                    global_step,
+                    decay_steps=decay_steps,
+                    decay_rate=training_config.learning_rate_decay_factor,
+                    staircase=True)
 
-                learning_rate_decay_fn = _learning_rate_decay_fn
+            learning_rate_decay_fn = _learning_rate_decay_fn
 
         # training ops.
         train_op = tf.contrib.layers.optimize_loss(
